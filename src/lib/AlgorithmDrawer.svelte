@@ -32,7 +32,8 @@
   const categoryLabels: Record<string, string> = {
     'demo': 'Demo',
     'traversal': 'Graph Traversal',
-    'shortest-path': 'Shortest Path'
+    'shortest-path': 'Shortest Path',
+    'mst': 'Minimum Spanning Tree'
   };
   
   function handleBackdropClick(e: MouseEvent) {

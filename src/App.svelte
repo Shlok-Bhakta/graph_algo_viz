@@ -16,7 +16,7 @@
   let buildings = $state<Element[]>([]);
   let highlightedEdges = $state(new Set<string>());
   let visitedNodes = $state(new Set<string>());
-  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 4000));
+  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000));
   let loading = $state(true);
   let error = $state<string | null>(null);
   let algorithmRunning = $state(false);
@@ -34,7 +34,7 @@
       loading = true;
       error = null;
       
-      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 4000);
+      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000);
       const data = await fetchOSMData(bbox);
       
       const highways = data.elements.filter(el => el.tags?.highway);

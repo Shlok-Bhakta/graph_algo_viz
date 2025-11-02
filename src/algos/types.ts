@@ -14,7 +14,7 @@ export interface AlgorithmMetadata {
   id: string;
   name: string;
   description: string;
-  category: 'traversal' | 'shortest-path' | 'demo';
+  category: 'traversal' | 'shortest-path' | 'demo' | 'mst';
   requiresSource: boolean;
   requiresSink: boolean;
   run: AlgorithmGenerator;

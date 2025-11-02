@@ -2,6 +2,8 @@ import type { AlgorithmMetadata } from './types';
 import { randomEdges } from './random_edges';
 import { dfs } from './dfs';
 import { bfs } from './bfs';
+import { Kruskal } from './kruskal';
+import { Prim } from './prim';
 
 export const algorithms: AlgorithmMetadata[] = [
   {
@@ -21,6 +23,24 @@ export const algorithms: AlgorithmMetadata[] = [
     requiresSource: false,
     requiresSink: false,
     run: bfs
+  },
+  {
+    id: 'Kruskal',
+    name: 'Kruskal\'s Sinimum Spanning Tree',
+    description: 'Connects all nodes using the minimum distance',
+    category: 'mst',
+    requiresSource: false,
+    requiresSink: false,
+    run: Kruskal
+  },
+  {
+    id: 'Prim',
+    name: 'Prim\'s Sinimum Spanning Tree',
+    description: 'Connects all nodes using the minimum distance but in a different way',
+    category: 'mst',
+    requiresSource: false,
+    requiresSink: false,
+    run: Prim
   },
   {
     id: 'random-edges',
