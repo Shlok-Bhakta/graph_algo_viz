@@ -19,7 +19,10 @@
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
+  let offscreenCanvas: HTMLCanvasElement | null = null;
+  let offscreenCtx: CanvasRenderingContext2D | null = null;
   let draggingPin = $state<'source' | 'sink' | null>(null);
+  let staticLayerRendered = false;
 
   function latToY(lat: number): number {
     return ((bbox.north - lat) / (bbox.north - bbox.south)) * canvas.height;
@@ -94,11 +97,14 @@
     }
   }
 
-  function render() {
-    if (!ctx || !canvas) return;
+  function renderStaticLayer() {
+    if (!offscreenCanvas || !offscreenCtx) return;
 
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    offscreenCtx.fillStyle = '#0a0a0a';
+    offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+    const originalCtx = ctx;
+    ctx = offscreenCtx;
 
     buildings.forEach(building => {
       drawWay(building, '#1a1a1a', 1, true);
@@ -106,11 +112,26 @@
 
     if (graph) {
       graph.edges.forEach(edge => {
-        if (!highlightedEdges.has(edge.id)) {
-          drawEdge(edge.way.geometry, '#333', 2, false);
-        }
+        drawEdge(edge.way.geometry, '#333', 2, false);
       });
-      
+    }
+
+    ctx = originalCtx;
+    staticLayerRendered = true;
+  }
+
+  function render() {
+    if (!ctx || !canvas) return;
+
+    if (!staticLayerRendered && offscreenCanvas) {
+      renderStaticLayer();
+    }
+
+    if (offscreenCanvas && staticLayerRendered) {
+      ctx.drawImage(offscreenCanvas, 0, 0);
+    }
+
+    if (graph) {
       graph.edges.forEach(edge => {
         if (highlightedEdges.has(edge.id)) {
           drawEdge(edge.way.geometry, '#ff6b35', 3, true);
@@ -185,6 +206,10 @@
 
   onMount(() => {
     ctx = canvas.getContext('2d');
+    offscreenCanvas = document.createElement('canvas');
+    offscreenCanvas.width = CANVAS_WIDTH;
+    offscreenCanvas.height = CANVAS_HEIGHT;
+    offscreenCtx = offscreenCanvas.getContext('2d');
     render();
   });
 
@@ -192,6 +217,12 @@
     if (ctx) {
       render();
     }
+  });
+
+  $effect(() => {
+    graph;
+    buildings;
+    staticLayerRendered = false;
   });
 </script>
 
