@@ -23,6 +23,7 @@
   let offscreenCtx: CanvasRenderingContext2D | null = null;
   let draggingPin = $state<'source' | 'sink' | null>(null);
   let staticLayerRendered = false;
+  let subEdgeCache = new Map<string, string[]>();
 
   function latToY(lat: number): number {
     return ((bbox.north - lat) / (bbox.north - bbox.south)) * canvas.height;
@@ -111,7 +112,8 @@
     });
 
     if (graph) {
-      graph.edges.forEach(edge => {
+      const renderEdges = graph._raw?.edges || graph.edges;
+      renderEdges.forEach(edge => {
         drawEdge(edge.way.geometry, '#333', 2, false);
       });
     }
@@ -132,8 +134,20 @@
     }
 
     if (graph) {
-      graph.edges.forEach(edge => {
-        if (highlightedEdges.has(edge.id)) {
+      // Build a set of all edges to highlight (including sub-edges)
+      const edgesToHighlight = new Set<string>();
+      for (const edgeId of highlightedEdges) {
+        edgesToHighlight.add(edgeId);
+        // If this is a simplified edge, also highlight its sub-edges using cache
+        const subEdges = subEdgeCache.get(edgeId);
+        if (subEdges) {
+          subEdges.forEach(subId => edgesToHighlight.add(subId));
+        }
+      }
+
+      const renderEdges = graph._raw?.edges || graph.edges;
+      renderEdges.forEach(edge => {
+        if (edgesToHighlight.has(edge.id)) {
           drawEdge(edge.way.geometry, '#ff6b35', 3, true);
         }
       });
@@ -223,6 +237,16 @@
     graph;
     buildings;
     staticLayerRendered = false;
+    
+    // Rebuild sub-edge cache when graph changes
+    subEdgeCache.clear();
+    if (graph) {
+      for (const edge of graph.edges) {
+        if (edge.subEdges) {
+          subEdgeCache.set(edge.id, edge.subEdges);
+        }
+      }
+    }
   });
 </script>
 

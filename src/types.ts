@@ -20,6 +20,10 @@ export interface Point {
 export interface Graph {
   nodes: Map<string, GraphNode>;
   edges: Edge[];
+  _raw?: {
+    nodes: Map<string, GraphNode>;
+    edges: Edge[];
+  };
 }
 
 export interface GraphNode {
@@ -36,6 +40,7 @@ export interface Edge {
   way: Way;
   weight: number;
   highlighted: boolean;
+  subEdges?: string[];
 }
 
 export interface Way {
