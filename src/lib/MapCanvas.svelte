@@ -105,14 +105,27 @@
     });
 
     if (graph) {
-      graph.edges.forEach(edge => {
-        if (!highlightedEdges.has(edge.id)) {
+      const renderEdges = graph._raw?.edges || graph.edges;
+      
+      // Build a set of all edges to highlight (including sub-edges)
+      const edgesToHighlight = new Set<string>();
+      for (const edgeId of highlightedEdges) {
+        edgesToHighlight.add(edgeId);
+        // If this is a simplified edge, also highlight its sub-edges
+        const edge = graph.edges.find(e => e.id === edgeId);
+        if (edge?.subEdges) {
+          edge.subEdges.forEach(subId => edgesToHighlight.add(subId));
+        }
+      }
+      
+      renderEdges.forEach(edge => {
+        if (!edgesToHighlight.has(edge.id)) {
           drawEdge(edge.way.geometry, '#333', 2, false);
         }
       });
       
-      graph.edges.forEach(edge => {
-        if (highlightedEdges.has(edge.id)) {
+      renderEdges.forEach(edge => {
+        if (edgesToHighlight.has(edge.id)) {
           drawEdge(edge.way.geometry, '#ff6b35', 3, true);
         }
       });

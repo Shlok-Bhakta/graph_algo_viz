@@ -16,7 +16,7 @@
   let buildings = $state<Element[]>([]);
   let highlightedEdges = $state(new Set<string>());
   let visitedNodes = $state(new Set<string>());
-  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000));
+  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 2000));
   let loading = $state(true);
   let error = $state<string | null>(null);
   let algorithmRunning = $state(false);
@@ -34,7 +34,7 @@
       loading = true;
       error = null;
       
-      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000);
+      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 2000);
       const data = await fetchOSMData(bbox);
       
       const highways = data.elements.filter(el => el.tags?.highway);
@@ -202,10 +202,11 @@
   function findNearestNode(lat: number, lon: number): { nodeId: string; lat: number; lon: number } | null {
     if (!graph) return null;
 
+    const nodesToSearch = graph._raw?.nodes || graph.nodes;
     let nearestNode = null;
     let minDist = Infinity;
 
-    for (const node of graph.nodes.values()) {
+    for (const node of nodesToSearch.values()) {
       const dist = Math.sqrt((node.lat - lat) ** 2 + (node.lon - lon) ** 2);
       if (dist < minDist) {
         minDist = dist;
