@@ -7,4 +7,5 @@ export default defineConfig({
   build: {
     outDir: 'docs', // This sets the output directory to 'docs'
   },
+  base: '/graph_algo_viz'
 })
