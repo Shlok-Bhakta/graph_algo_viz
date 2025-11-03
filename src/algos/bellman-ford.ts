@@ -72,7 +72,7 @@ export async function* bellmanford(
         const tempEdges = new Set([edge.id]);
         const tempNodes = new Set([edge.from, edge.to]);
         yield { visitedEdges: tempEdges, visitedNodes: tempNodes };
-        await new Promise(resolve => setTimeout(resolve, delayMs / 2));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
   }

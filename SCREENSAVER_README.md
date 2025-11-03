@@ -20,6 +20,9 @@ Auto-cycles through:
 - **DFS** (Depth-First Search)
 - **Prim's MST** (Minimum Spanning Tree)
 - **Kruskal's MST** (Minimum Spanning Tree)
+- **Bellman-Ford** (Shortest Path with pulse visualization)
+- **Dijkstra** (Shortest Path with wavefront expansion)
+- **A*** (Shortest Path with heuristic optimization)
 
 ### 🎭 Zen Aesthetics
 - **Deep gradient backgrounds**: Subtle dark blue/purple tones
@@ -27,6 +30,7 @@ Auto-cycles through:
 - **Smooth transitions**: 1.5s fade between locations
 - **Clean UI**: No buttons, just city name and algorithm at bottom
 - **Bloom effects**: Glowing edges during traversal
+- **Dual node visualization**: Yellow source node with ripples, cyan sink node for pathfinding algorithms
 
 ### 🎵 Ambient Audio
 - Looping ambient music (mixkit deep urban)
@@ -65,10 +69,10 @@ Auto-cycles through:
 Simply navigate away or close the tab. No keyboard/mouse handlers implemented for maximum zen.
 
 ## Future Enhancements
-- More algorithm variety (Dijkstra, A*)
 - Dynamic speed based on graph density
 - Custom audio playlist
 - Time-of-day color themes
 - Particle effects on nodes
+- More algorithm categories (flow networks, etc.)
 
 Enjoy your zen moment! 🧘‍♂️

@@ -13,9 +13,10 @@
     sinkPin: { nodeId: string; lat: number; lon: number } | null;
     sinkReachable: boolean;
     onPinDrag: (pinType: 'source' | 'sink', lat: number, lon: number) => void;
+    zenMode?: boolean;
   }
 
-  let { bbox, graph, buildings, highlightedEdges, CANVAS_WIDTH, CANVAS_HEIGHT, sourcePin, sinkPin, sinkReachable, onPinDrag }: Props = $props();
+  let { bbox, graph, buildings, highlightedEdges, CANVAS_WIDTH, CANVAS_HEIGHT, sourcePin, sinkPin, sinkReachable, onPinDrag, zenMode = false }: Props = $props();
 
   let canvas: HTMLCanvasElement;
   let ctx: CanvasRenderingContext2D | null = null;
@@ -164,26 +165,54 @@
     if (sourcePin) {
       const x = lonToX(sourcePin.lon);
       const y = latToY(sourcePin.lat);
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = '#22c55e';
-      ctx.fill();
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = '#22c55e';
-      ctx.fillText('source', x + 10, y - 10);
+      
+      if (zenMode) {
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 12);
+        gradient.addColorStop(0, '#fbbf24');
+        gradient.addColorStop(1, '#f59e0b');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#22c55e';
+        ctx.fill();
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = '#22c55e';
+        ctx.fillText('source', x + 10, y - 10);
+      }
     }
 
     if (sinkPin) {
       const x = lonToX(sinkPin.lon);
       const y = latToY(sinkPin.lat);
-      const sinkColor = sinkReachable ? '#3b82f6' : '#ef4444';
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = sinkColor;
-      ctx.fill();
-      ctx.font = '10px sans-serif';
-      ctx.fillStyle = sinkColor;
-      ctx.fillText('sink', x + 10, y - 10);
+      
+      if (zenMode) {
+        ctx.shadowBlur = 30;
+        ctx.shadowColor = '#06b6d4';
+        ctx.beginPath();
+        ctx.arc(x, y, 12, 0, Math.PI * 2);
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 12);
+        gradient.addColorStop(0, '#06b6d4');
+        gradient.addColorStop(1, '#0891b2');
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        const sinkColor = sinkReachable ? '#3b82f6' : '#ef4444';
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = sinkColor;
+        ctx.fill();
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = sinkColor;
+        ctx.fillText('sink', x + 10, y - 10);
+      }
     }
   }
 

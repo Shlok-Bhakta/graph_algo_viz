@@ -9,7 +9,6 @@ export async function* Djikstra(
   const delayMs = options?.delayMs ?? 50;
   let visitedEdges = new Set<string>();
   let visitedNodes = new Set<string>();
-  let reachableEdges = new Set<Edge>();
   const startNodeId = options?.source;
   if (!startNodeId) {
     return { visitedEdges, visitedNodes };
@@ -19,60 +18,43 @@ export async function* Djikstra(
     return { visitedEdges, visitedNodes };
   }
   
-  let queue: string[] = [startNodeId]
-  while(queue.length != 0){
-    let elem: string | undefined = queue.shift();
-    let node: GraphNode | undefined;
-    if(elem == undefined){
-      continue;
-    } else{
-      node = graph.nodes.get(elem);
-      if(node == undefined){
-        continue;
-      }
-      if(node.edges.length > 0){
-        visitedNodes.add(node.edges[0].from)
-      }
-      for(let i = 0; i < node.edges.length; i++){
-        if(visitedNodes.has(node.edges[i].to)){
-          continue;
-        }else{
-          queue.push(node.edges[i].to)
-          visitedEdges.add(node.edges[i].id);
-          visitedNodes.add(node.edges[i].to)
-          reachableEdges.add(node.edges[i])
-        }
-        
-      }
-    }
-    
-  }
-  // yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-  // await new Promise(resolve => setTimeout(resolve, delayMs));
-  let reachable = visitedNodes
-  visitedEdges = new Set<string>();
-  visitedNodes = new Set<string>();
   const distances = new Map<string, number>();
   const parents = new Map<string, {nodeId: string, edgeId: string} | null>();
-  for(let node of reachable){
-    distances.set(node, Infinity)
-    parents.set(node, null)
-  }
+  const visited = new Set<string>();
   distances.set(startNodeId, 0)
+  const heap = new MinHeap<{nodeId: string, dist: number}>((a, b) => a.dist - b.dist);
+  heap.push({nodeId: startNodeId, dist: 0})
+  while(heap.length > 0){
   // Continuously do relax v-1 times on all edges
-  for(let i = 0; i < reachable.size-1; i++){
-    for(let edge of reachableEdges){
-      const currentDist = distances.get(edge.from) ?? Infinity
-      const newDist = currentDist + edge.weight;
+    const {nodeId, dist} = heap.pop()!;
+    if(visited.has(nodeId)){
+      continue;
+    }else{
+      visited.add(nodeId);
+    }
+
+    if(nodeId == endNodeId) {
+      break; // Yipee we done
+    }
+    
+    const node = graph.nodes.get(nodeId);
+    if(!node){
+      continue
+    }
+
+    for (const edge of node.edges){
+      const newDist = dist + edge.weight;
       const oldDist = distances.get(edge.to) ?? Infinity
       if (newDist < oldDist){
         distances.set(edge.to, newDist)
         parents.set(edge.to, {nodeId: edge.from, edgeId: edge.id})
+        heap.push({nodeId: edge.to, dist: newDist})
         
-        const tempEdges = new Set([edge.id]);
-        const tempNodes = new Set([edge.from, edge.to]);
-        yield { visitedEdges: tempEdges, visitedNodes: tempNodes };
-        await new Promise(resolve => setTimeout(resolve, delayMs / 2));
+        visitedEdges.add(edge.id);
+        visitedNodes.add(edge.from);
+        visitedNodes.add(edge.to);
+        yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
   }

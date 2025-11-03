@@ -18,9 +18,9 @@
   let fadeOut = $state(false);
   let currentCity = $state('');
   let currentAlgorithm = $state('');
-  let sourceNode: { lat: number; lon: number } | null = null;
-  let showRootGlow = $state(false);
-  let rippleAnimations = $state<Array<{ id: number; startTime: number }>>([]);
+  let sourcePin = $state<{ nodeId: string; lat: number; lon: number } | null>(null);
+  let sinkPin = $state<{ nodeId: string; lat: number; lon: number } | null>(null);
+  let sinkReachable = $state(false);
   let currentRadius = $state(1000);
 
   let nextGraph: Graph | null = null;
@@ -29,7 +29,7 @@
   let nextCity = '';
   let preloading = false;
 
-  const zenAlgorithms = ['bfs', 'dfs', 'Prim', 'Kruskal'];
+  const zenAlgorithms = ['bfs', 'dfs', 'Prim', 'Kruskal', 'Bellman-Ford', 'Djikstra', 'astar'];
 
   let nextRadius = 1000;
 
@@ -62,31 +62,128 @@
     }
   }
 
-  function selectCentralNode(graphData: Graph, bboxData: BoundingBox): any {
-    const centerLat = (bboxData.north + bboxData.south) / 2;
-    const centerLon = (bboxData.east + bboxData.west) / 2;
-    
-    const nodes = Array.from(graphData.nodes.values());
-    const margin = 0.3;
-    const latMargin = (bboxData.north - bboxData.south) * margin;
-    const lonMargin = (bboxData.east - bboxData.west) * margin;
-    
-    const centralNodes = nodes.filter(node => 
-      node.lat >= bboxData.south + latMargin &&
-      node.lat <= bboxData.north - latMargin &&
-      node.lon >= bboxData.west + lonMargin &&
-      node.lon <= bboxData.east - lonMargin
-    );
-    
-    if (centralNodes.length === 0) return nodes[Math.floor(nodes.length / 2)];
-    
-    centralNodes.sort((a, b) => {
-      const distA = Math.sqrt(Math.pow(a.lat - centerLat, 2) + Math.pow(a.lon - centerLon, 2));
-      const distB = Math.sqrt(Math.pow(b.lat - centerLat, 2) + Math.pow(b.lon - centerLon, 2));
-      return distA - distB;
-    });
-    
-    return centralNodes[0];
+  function initializePins(requiresSink: boolean) {
+    if (!graph || !bbox) return;
+
+    const centerLat = (bbox.north + bbox.south) / 2;
+    const centerLon = (bbox.east + bbox.west) / 2;
+
+    const nodeArray = Array.from(graph.nodes.values());
+    if (nodeArray.length < 2) return;
+
+    const latMargin = (bbox.north - bbox.south) * 0.1;
+    const lonMargin = (bbox.east - bbox.west) * 0.1;
+
+    const isInBounds = (node: typeof nodeArray[0]) => {
+      return node.lat >= bbox.south + latMargin && 
+             node.lat <= bbox.north - latMargin && 
+             node.lon >= bbox.west + lonMargin && 
+             node.lon <= bbox.east - lonMargin;
+    };
+
+    if (requiresSink) {
+      const corners = [
+        { lat: centerLat + (bbox.north - bbox.south) * 0.25, lon: centerLon - (bbox.east - bbox.west) * 0.25 },
+        { lat: centerLat + (bbox.north - bbox.south) * 0.25, lon: centerLon + (bbox.east - bbox.west) * 0.25 },
+        { lat: centerLat - (bbox.north - bbox.south) * 0.25, lon: centerLon - (bbox.east - bbox.west) * 0.25 },
+        { lat: centerLat - (bbox.north - bbox.south) * 0.25, lon: centerLon + (bbox.east - bbox.west) * 0.25 }
+      ];
+      
+      const sourceCorner = corners[Math.floor(Math.random() * corners.length)];
+      let sourceNode = nodeArray[0];
+      let minDistToSourceCorner = Infinity;
+      for (const node of nodeArray) {
+        if (!isInBounds(node)) continue;
+        const dist = Math.sqrt((node.lat - sourceCorner.lat) ** 2 + (node.lon - sourceCorner.lon) ** 2);
+        if (dist < minDistToSourceCorner) {
+          minDistToSourceCorner = dist;
+          sourceNode = node;
+        }
+      }
+
+      const depthMap = new Map<string, number>();
+      const queue: { id: string; depth: number }[] = [{ id: sourceNode.id, depth: 0 }];
+      depthMap.set(sourceNode.id, 0);
+      let maxDepth = 0;
+      
+      while (queue.length > 0) {
+        const { id, depth } = queue.shift()!;
+        const currentNode = graph.nodes.get(id);
+        if (!currentNode) continue;
+        
+        maxDepth = Math.max(maxDepth, depth);
+        
+        for (const edge of currentNode.edges) {
+          if (!depthMap.has(edge.to)) {
+            depthMap.set(edge.to, depth + 1);
+            queue.push({ id: edge.to, depth: depth + 1 });
+          }
+        }
+      }
+      
+      let sinkNode = sourceNode;
+      for (let targetDepth = maxDepth; targetDepth >= Math.floor(maxDepth * 0.6); targetDepth--) {
+        const candidatesAtDepth: typeof sourceNode[] = [];
+        
+        for (const [nodeId, depth] of depthMap.entries()) {
+          if (depth === targetDepth) {
+            const node = graph.nodes.get(nodeId);
+            if (node && isInBounds(node)) {
+              candidatesAtDepth.push(node);
+            }
+          }
+        }
+        
+        if (candidatesAtDepth.length > 0) {
+          sinkNode = candidatesAtDepth[Math.floor(Math.random() * candidatesAtDepth.length)];
+          break;
+        }
+      }
+      
+      sourcePin = { nodeId: sourceNode.id, lat: sourceNode.lat, lon: sourceNode.lon };
+      sinkPin = { nodeId: sinkNode.id, lat: sinkNode.lat, lon: sinkNode.lon };
+      sinkReachable = checkReachability(sourceNode.id, sinkNode.id);
+    } else {
+      let sourceNode = nodeArray[0];
+      let minDistToCenter = Infinity;
+      for (const node of nodeArray) {
+        if (!isInBounds(node)) continue;
+        const dist = Math.sqrt((node.lat - centerLat) ** 2 + (node.lon - centerLon) ** 2);
+        if (dist < minDistToCenter) {
+          minDistToCenter = dist;
+          sourceNode = node;
+        }
+      }
+      
+      sourcePin = { nodeId: sourceNode.id, lat: sourceNode.lat, lon: sourceNode.lon };
+      sinkPin = null;
+      sinkReachable = false;
+    }
+  }
+
+  function checkReachability(sourceNodeId: string, sinkNodeId: string): boolean {
+    if (!graph) return false;
+
+    const visited = new Set<string>();
+    const queue: string[] = [sourceNodeId];
+    visited.add(sourceNodeId);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (currentId === sinkNodeId) return true;
+
+      const currentNode = graph.nodes.get(currentId);
+      if (!currentNode) continue;
+
+      for (const edge of currentNode.edges) {
+        if (!visited.has(edge.to)) {
+          visited.add(edge.to);
+          queue.push(edge.to);
+        }
+      }
+    }
+
+    return false;
   }
 
   async function loadNewLocation() {
@@ -130,17 +227,6 @@
     }
   }
 
-  function startRippleAnimation() {
-    rippleAnimations = [{ id: Date.now(), startTime: Date.now() }];
-    const interval = setInterval(() => {
-      rippleAnimations = [...rippleAnimations, { id: Date.now(), startTime: Date.now() }];
-    }, 800);
-    
-    setTimeout(() => {
-      clearInterval(interval);
-    }, 3200);
-  }
-
   async function runRandomAlgorithm() {
     if (!graph || !bbox) return;
     
@@ -153,24 +239,22 @@
     const algo = algorithms.find(a => a.id === algoId);
     if (!algo) return;
     
+    initializePins(algo.requiresSink);
+    
     highlightedEdges = new Set();
     visitedNodes = new Set();
     
-    const selectedNode = selectCentralNode(graph, bbox);
-    sourceNode = { lat: selectedNode.lat, lon: selectedNode.lon };
-    
-    showRootGlow = true;
-    startRippleAnimation();
     await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 500));
     
     const speed = 20 + Math.floor(Math.random() * 30);
     
-    console.log(`Running ${algo.name} at ${speed}ms delay from central node`);
+    console.log(`Running ${algo.name} at ${speed}ms delay from ${sourcePin?.nodeId} to ${sinkPin?.nodeId}`);
     
     try {
       for await (const step of algo.run(graph, { 
         delayMs: speed, 
-        source: selectedNode.id 
+        source: sourcePin?.nodeId,
+        sink: sinkPin?.nodeId 
       })) {
         highlightedEdges = step.visitedEdges;
         visitedNodes = step.visitedNodes;
@@ -188,10 +272,10 @@
     fadeOut = true;
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    showRootGlow = false;
-    rippleAnimations = [];
     highlightedEdges = new Set();
     visitedNodes = new Set();
+    sourcePin = null;
+    sinkPin = null;
     graph = null;
     bbox = null;
     
@@ -237,25 +321,12 @@
       {highlightedEdges}
       CANVAS_WIDTH={CANVAS_WIDTH}
       CANVAS_HEIGHT={CANVAS_HEIGHT}
-      sourcePin={null}
-      sinkPin={null}
-      sinkReachable={false}
+      {sourcePin}
+      {sinkPin}
+      {sinkReachable}
       onPinDrag={() => {}}
+      zenMode={true}
     />
-
-    {#if showRootGlow && sourceNode}
-      {@const x = ((sourceNode.lon - bbox.west) / (bbox.east - bbox.west)) * CANVAS_WIDTH}
-      {@const y = ((bbox.north - sourceNode.lat) / (bbox.north - bbox.south)) * CANVAS_HEIGHT}
-      {@const scale = Math.max(0.4, Math.min(2.5, 1000 / currentRadius))}
-      
-      <div class="absolute z-30 pointer-events-none" style="left: {x}px; top: {y}px; transform: translate(-50%, -50%) scale({scale});">
-        <div class="root-glow"></div>
-        
-        {#each rippleAnimations as ripple (ripple.id)}
-          <div class="ripple"></div>
-        {/each}
-      </div>
-    {/if}
     
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/50 text-xs font-light tracking-widest text-center z-30 px-6 py-3 rounded-lg backdrop-blur-[2px] bg-black/5">
       <div class="mb-1">{currentCity}</div>
@@ -277,51 +348,5 @@
     transition-duration: 1.2s;
   }
 
-  .root-glow {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #fbbf24, #f59e0b);
-    box-shadow: 0 0 30px #fbbf24, 0 0 60px #f59e0b;
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
 
-  .ripple {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 2px solid #fbbf24;
-    animation: ripple-expand 3.2s ease-out forwards;
-    pointer-events: none;
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(1.2);
-      opacity: 0.8;
-    }
-  }
-
-  @keyframes ripple-expand {
-    0% {
-      width: 24px;
-      height: 24px;
-      opacity: 1;
-      border-width: 2px;
-    }
-    100% {
-      width: 200px;
-      height: 200px;
-      opacity: 0;
-      border-width: 1px;
-    }
-  }
 </style>
