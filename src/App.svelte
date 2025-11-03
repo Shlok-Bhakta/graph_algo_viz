@@ -271,7 +271,13 @@
     {CENTER_LAT.toFixed(6)}, {CENTER_LON.toFixed(6)}
   </div>
 
-  <div class="absolute right-2 top-2 flex flex-col items-end gap-1">
+  <div class="absolute right-2 top-2 flex flex-col items-end gap-2">
+    <button 
+      onclick={() => window.open('?screensaver', '_blank')}
+      class="px-3 py-1.5 text-sm bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600/30 hover:to-purple-600/30 backdrop-blur-sm text-white rounded border border-indigo-500/30 transition-all"
+    >
+      ✨ Screensaver Mode
+    </button>
     <button 
       onclick={initializePins}
       class="px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white rounded border border-white/20 transition-colors"

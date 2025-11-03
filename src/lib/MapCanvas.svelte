@@ -101,20 +101,24 @@
   function renderStaticLayer() {
     if (!offscreenCanvas || !offscreenCtx) return;
 
-    offscreenCtx.fillStyle = '#0a0a0a';
+    const bgGradient = offscreenCtx.createLinearGradient(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+    bgGradient.addColorStop(0, '#0a0a0f');
+    bgGradient.addColorStop(0.5, '#0d0d12');
+    bgGradient.addColorStop(1, '#0a0a0f');
+    offscreenCtx.fillStyle = bgGradient;
     offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
 
     const originalCtx = ctx;
     ctx = offscreenCtx;
 
     buildings.forEach(building => {
-      drawWay(building, '#1a1a1a', 1, true);
+      drawWay(building, '#1a1a24', 1, true);
     });
 
     if (graph) {
       const renderEdges = graph._raw?.edges || graph.edges;
       renderEdges.forEach(edge => {
-        drawEdge(edge.way.geometry, '#333', 2, false);
+        drawEdge(edge.way.geometry, '#2a2a3a', 2, false);
       });
     }
 
@@ -146,9 +150,13 @@
       }
 
       const renderEdges = graph._raw?.edges || graph.edges;
+      const highlightColors = ['#8b5cf6', '#a78bfa', '#c084fc', '#e9d5ff', '#7c3aed'];
+      const colorIndex = Math.floor(highlightedEdges.size / 10) % highlightColors.length;
+      const highlightColor = highlightColors[colorIndex];
+      
       renderEdges.forEach(edge => {
         if (edgesToHighlight.has(edge.id)) {
-          drawEdge(edge.way.geometry, '#ff6b35', 3, true);
+          drawEdge(edge.way.geometry, highlightColor, 3, true);
         }
       });
     }

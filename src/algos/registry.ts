@@ -4,6 +4,8 @@ import { dfs } from './dfs';
 import { bfs } from './bfs';
 import { Kruskal } from './kruskal';
 import { Prim } from './prim';
+import { bellmanford } from './bellman-ford';
+import { Djikstra } from './djikstra';
 
 export const algorithms: AlgorithmMetadata[] = [
   {
@@ -42,6 +44,24 @@ export const algorithms: AlgorithmMetadata[] = [
     requiresSink: false,
     run: Prim
   },
+  {
+    id: 'Bellman-Ford',
+    name: 'Bellman-Ford Shortest Path',
+    description: 'Finds the shortest path from source to sink',
+    category: 'shortest-path',
+    requiresSource: true,
+    requiresSink: true,
+    run: bellmanford
+  },
+  // {
+  //   id: 'Djikstra',
+  //   name: 'Djikstra Shortest Path',
+  //   description: 'Finds the shortest path from source to sink but in a different way',
+  //   category: 'shortest-path',
+  //   requiresSource: true,
+  //   requiresSink: true,
+  //   run: Djikstra
+  // },
   {
     id: 'random-edges',
     name: 'Random Edges',

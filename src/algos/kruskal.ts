@@ -89,8 +89,8 @@ export async function* Kruskal(
     }
     
   }
-  yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-  await new Promise(resolve => setTimeout(resolve, delayMs));
+  // yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
+  // await new Promise(resolve => setTimeout(resolve, delayMs));
   // const edges_sorted = 
   let reachable = visitedNodes
   visitedEdges = new Set<string>();
