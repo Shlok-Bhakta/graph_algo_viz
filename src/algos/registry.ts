@@ -84,5 +84,5 @@ export const algorithms: AlgorithmMetadata[] = [
 ];
 
 export function getAlgorithmById(id: string): AlgorithmMetadata | undefined {
-  return algorithms.find(algo => algo.id === id);
+  return algorithms.find(algo => algo.id.toLowerCase() === id.toLowerCase());
 }

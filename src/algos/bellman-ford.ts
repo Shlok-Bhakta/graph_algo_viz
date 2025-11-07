@@ -60,7 +60,9 @@ export async function* bellmanford(
   }
   distances.set(startNodeId, 0)
   // Continuously do relax v-1 times on all edges
-  for(let i = 0; i < reachable.size-1; i++){
+  for(let i = 0; i < reachable.size-1; i++){        
+    const tempEdges: Set<string> = new Set();
+    const tempNodes: Set<string> = new Set();
     for(let edge of reachableEdges){
       const currentDist = distances.get(edge.from) ?? Infinity
       const newDist = currentDist + edge.weight;
@@ -69,8 +71,9 @@ export async function* bellmanford(
         distances.set(edge.to, newDist)
         parents.set(edge.to, {nodeId: edge.from, edgeId: edge.id})
         
-        const tempEdges = new Set([edge.id]);
-        const tempNodes = new Set([edge.from, edge.to]);
+        tempEdges.add(edge.id)
+        tempNodes.add(edge.from)
+        tempNodes.add(edge.to)
         yield { visitedEdges: tempEdges, visitedNodes: tempNodes };
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }

@@ -6,6 +6,12 @@
   import { getRandomCity, getRandomRadius } from './lib/cities';
   import type { BoundingBox, Graph, Element } from './types';
 
+  interface Props {
+    algorithms?: string[];
+  }
+
+  let { algorithms = [] }: Props = $props();
+
   const CANVAS_WIDTH = $state(screen.width);
   const CANVAS_HEIGHT = $state(screen.height);
 
@@ -28,8 +34,6 @@
   let nextBbox: BoundingBox | null = null;
   let nextCity = '';
   let preloading = false;
-
-  const zenAlgorithms = ['bfs', 'dfs', 'Prim', 'Kruskal', 'Bellman-Ford', 'Djikstra', 'astar'];
 
   let nextRadius = 1000;
 
@@ -232,12 +236,15 @@
     
     preloadNextLocation();
     
-    const algoId = zenAlgorithms[Math.floor(Math.random() * zenAlgorithms.length)];
-    currentAlgorithm = algoId;
+    const { algorithms: allAlgorithms } = await import('./algos/registry');
+    const availableAlgos = algorithms.length > 0 
+      ? allAlgorithms.filter(a => algorithms.some(id => id.toLowerCase() === a.id.toLowerCase()))
+      : allAlgorithms.filter(a => a.category !== 'demo');
     
-    const { algorithms } = await import('./algos/registry');
-    const algo = algorithms.find(a => a.id === algoId);
-    if (!algo) return;
+    if (availableAlgos.length === 0) return;
+    
+    const algo = availableAlgos[Math.floor(Math.random() * availableAlgos.length)];
+    currentAlgorithm = algo.id;
     
     initializePins(algo.requiresSink);
     

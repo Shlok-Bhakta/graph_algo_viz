@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import type { Element, Graph, BoundingBox, Point } from '../types';
 
   interface Props {
@@ -25,6 +25,10 @@
   let draggingPin = $state<'source' | 'sink' | null>(null);
   let staticLayerRendered = false;
   let subEdgeCache = new Map<string, string[]>();
+  let animationFrameId: number | null = null;
+  let isDirty = true;
+  let highlightPath2DCache = new Map<string, Path2D>();
+  let previousHighlightedSize = 0;
 
   function latToY(lat: number): number {
     return ((bbox.north - lat) / (bbox.north - bbox.south)) * canvas.height;
@@ -69,32 +73,36 @@
     ctx.stroke();
   }
 
-  function drawEdge(geometry: Point[], color: string, lineWidth: number = 2, withBloom: boolean = false) {
-    if (!ctx || geometry.length < 2) return;
-
-    if (withBloom) {
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = color;
-    }
-
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
-
+  function createPath2D(geometry: Point[]): Path2D {
+    const path = new Path2D();
     geometry.forEach((point, i) => {
       const x = lonToX(point.lon);
       const y = latToY(point.lat);
 
       if (i === 0) {
-        ctx!.moveTo(x, y);
+        path.moveTo(x, y);
       } else {
-        ctx!.lineTo(x, y);
+        path.lineTo(x, y);
       }
     });
+    return path;
+  }
 
-    ctx.stroke();
+  function drawEdge(geometry: Point[], color: string, lineWidth: number = 2, withBloom: boolean = false) {
+    if (!ctx || geometry.length < 2) return;
 
-    if (withBloom) {
+    if (withBloom && zenMode) {
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = color;
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+
+    const path = createPath2D(geometry);
+    ctx.stroke(path);
+
+    if (withBloom && zenMode) {
       ctx.shadowBlur = 0;
     }
   }
@@ -128,7 +136,7 @@
   }
 
   function render() {
-    if (!ctx || !canvas) return;
+    if (!ctx || !canvas || !isDirty) return;
 
     if (!staticLayerRendered && offscreenCanvas) {
       renderStaticLayer();
@@ -138,12 +146,10 @@
       ctx.drawImage(offscreenCanvas, 0, 0);
     }
 
-    if (graph) {
-      // Build a set of all edges to highlight (including sub-edges)
+    if (graph && highlightedEdges.size > 0) {
       const edgesToHighlight = new Set<string>();
       for (const edgeId of highlightedEdges) {
         edgesToHighlight.add(edgeId);
-        // If this is a simplified edge, also highlight its sub-edges using cache
         const subEdges = subEdgeCache.get(edgeId);
         if (subEdges) {
           subEdges.forEach(subId => edgesToHighlight.add(subId));
@@ -155,11 +161,36 @@
       const colorIndex = Math.floor(highlightedEdges.size / 10) % highlightColors.length;
       const highlightColor = highlightColors[colorIndex];
       
-      renderEdges.forEach(edge => {
+      ctx.strokeStyle = highlightColor;
+      ctx.lineWidth = 3;
+      
+      if (zenMode) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = highlightColor;
+      }
+      
+      ctx.beginPath();
+      for (const edge of renderEdges) {
         if (edgesToHighlight.has(edge.id)) {
-          drawEdge(edge.way.geometry, highlightColor, 3, true);
+          const geometry = edge.way.geometry;
+          if (geometry.length < 2) continue;
+          
+          geometry.forEach((point, i) => {
+            const x = lonToX(point.lon);
+            const y = latToY(point.lat);
+            if (i === 0) {
+              ctx!.moveTo(x, y);
+            } else {
+              ctx!.lineTo(x, y);
+            }
+          });
         }
-      });
+      }
+      ctx.stroke();
+      
+      if (zenMode) {
+        ctx.shadowBlur = 0;
+      }
     }
 
     if (sourcePin) {
@@ -167,21 +198,27 @@
       const y = latToY(sourcePin.lat);
       
       if (zenMode) {
-        ctx.shadowBlur = 30;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(x, y, 12, 0, Math.PI * 2);
+      }
+      
+      ctx.beginPath();
+      ctx.arc(x, y, zenMode ? 12 : 6, 0, Math.PI * 2);
+      
+      if (zenMode) {
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, 12);
         gradient.addColorStop(0, '#fbbf24');
         gradient.addColorStop(1, '#f59e0b');
         ctx.fillStyle = gradient;
-        ctx.fill();
+      } else {
+        ctx.fillStyle = '#22c55e';
+      }
+      
+      ctx.fill();
+      
+      if (zenMode) {
         ctx.shadowBlur = 0;
       } else {
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = '#22c55e';
-        ctx.fill();
         ctx.font = '10px sans-serif';
         ctx.fillStyle = '#22c55e';
         ctx.fillText('source', x + 10, y - 10);
@@ -193,27 +230,34 @@
       const y = latToY(sinkPin.lat);
       
       if (zenMode) {
-        ctx.shadowBlur = 30;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = '#06b6d4';
-        ctx.beginPath();
-        ctx.arc(x, y, 12, 0, Math.PI * 2);
+      }
+      
+      ctx.beginPath();
+      ctx.arc(x, y, zenMode ? 12 : 6, 0, Math.PI * 2);
+      
+      if (zenMode) {
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, 12);
         gradient.addColorStop(0, '#06b6d4');
         gradient.addColorStop(1, '#0891b2');
         ctx.fillStyle = gradient;
-        ctx.fill();
+      } else {
+        ctx.fillStyle = sinkReachable ? '#3b82f6' : '#ef4444';
+      }
+      
+      ctx.fill();
+      
+      if (zenMode) {
         ctx.shadowBlur = 0;
       } else {
-        const sinkColor = sinkReachable ? '#3b82f6' : '#ef4444';
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.fillStyle = sinkColor;
-        ctx.fill();
         ctx.font = '10px sans-serif';
-        ctx.fillStyle = sinkColor;
+        ctx.fillStyle = sinkReachable ? '#3b82f6' : '#ef4444';
         ctx.fillText('sink', x + 10, y - 10);
       }
     }
+    
+    isDirty = false;
   }
 
   function handleMouseDown(e: MouseEvent) {
@@ -255,18 +299,46 @@
     draggingPin = null;
   }
 
+  function scheduleRender() {
+    if (animationFrameId !== null) return;
+    
+    isDirty = true;
+    animationFrameId = requestAnimationFrame(() => {
+      render();
+      animationFrameId = null;
+    });
+  }
+
   onMount(() => {
-    ctx = canvas.getContext('2d');
+    ctx = canvas.getContext('2d', { alpha: false });
     offscreenCanvas = document.createElement('canvas');
     offscreenCanvas.width = CANVAS_WIDTH;
     offscreenCanvas.height = CANVAS_HEIGHT;
-    offscreenCtx = offscreenCanvas.getContext('2d');
-    render();
+    offscreenCtx = offscreenCanvas.getContext('2d', { alpha: false });
+    scheduleRender();
+  });
+
+  onDestroy(() => {
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId);
+    }
   });
 
   $effect(() => {
     if (ctx) {
-      render();
+      if (highlightedEdges.size !== previousHighlightedSize) {
+        previousHighlightedSize = highlightedEdges.size;
+        scheduleRender();
+      }
+    }
+  });
+
+  $effect(() => {
+    sourcePin;
+    sinkPin;
+    sinkReachable;
+    if (ctx) {
+      scheduleRender();
     }
   });
 
@@ -274,8 +346,8 @@
     graph;
     buildings;
     staticLayerRendered = false;
+    highlightPath2DCache.clear();
     
-    // Rebuild sub-edge cache when graph changes
     subEdgeCache.clear();
     if (graph) {
       for (const edge of graph.edges) {
@@ -283,6 +355,10 @@
           subEdgeCache.set(edge.id, edge.subEdges);
         }
       }
+    }
+    
+    if (ctx) {
+      scheduleRender();
     }
   });
 </script>
