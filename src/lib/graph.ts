@@ -157,6 +157,15 @@ export function buildGraph(elements: Element[]): Graph {
     }
   }
 
+  if (collapsedGraph.nodes.size < 2 || collapsedGraph.edges.length === 0) {
+    rawGraph._raw = {
+      nodes: rawGraph.nodes,
+      edges: rawGraph.edges
+    };
+    console.log(`Graph: using raw fallback with ${rawGraph.nodes.size} nodes and ${rawGraph.edges.length} edges`);
+    return rawGraph;
+  }
+
   // Return simplified graph as main, but store raw graph for rendering
   collapsedGraph._raw = {
     nodes: rawGraph.nodes,

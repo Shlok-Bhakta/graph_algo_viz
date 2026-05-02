@@ -4,19 +4,25 @@
   import AlgorithmDrawer from './lib/AlgorithmDrawer.svelte';
   import { calculateBbox, fetchOSMData } from './lib/overpass';
   import { buildGraph } from './lib/graph';
-  import { algorithms } from './algos/registry';
+  import { pickVisiblePins } from './lib/pins';
+  import { algorithms, getAlgorithmViewportScale } from './algos/registry';
   import type { BoundingBox, Graph, Element } from './types';
 
   const CENTER_LAT = 30.631127;
   const CENTER_LON = -96.355140;
-  let CANVAS_WIDTH = $state(screen.width);
-  let CANVAS_HEIGHT = $state(screen.height);
+  const BASE_MAP_RADIUS = 1000;
+  const screensaverPath = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/screensaver`;
+  let CANVAS_WIDTH = $state(window.innerWidth);
+  let CANVAS_HEIGHT = $state(window.innerHeight);
 
   let graph = $state<Graph | null>(null);
   let buildings = $state<Element[]>([]);
+  let water = $state<Element[]>([]);
   let highlightedEdges = $state(new Set<string>());
   let visitedNodes = $state(new Set<string>());
-  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000));
+  let edgeFreshness = $state(new Map<string, number>());
+  let currentMapRadius = $state(BASE_MAP_RADIUS);
+  let bbox = $state<BoundingBox>(calculateBbox(CENTER_LAT, CENTER_LON, window.innerWidth, window.innerHeight, BASE_MAP_RADIUS));
   let loading = $state(true);
   let error = $state<string | null>(null);
   let algorithmRunning = $state(false);
@@ -29,23 +35,26 @@
   let sinkPin = $state<{ nodeId: string; lat: number; lon: number } | null>(null);
   let sinkReachable = $state(false);
 
-  async function loadData() {
+  async function loadData(radius = currentMapRadius) {
     try {
       loading = true;
       error = null;
+      currentMapRadius = radius;
       
-      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, 1000);
+      bbox = calculateBbox(CENTER_LAT, CENTER_LON, CANVAS_WIDTH, CANVAS_HEIGHT, radius);
       const data = await fetchOSMData(bbox);
       
       const highways = data.elements.filter(el => el.tags?.highway);
       const buildingsList = data.elements.filter(el => el.tags?.building);
+      const waterList = data.elements.filter(el => el.tags?.natural === 'water' || el.tags?.waterway || el.tags?.landuse === 'reservoir');
       
       graph = buildGraph(highways);
       buildings = buildingsList;
+      water = waterList;
       
       initializePins();
       
-      console.log(`Loaded ${graph.nodes.size} nodes, ${graph.edges.length} edges, ${buildingsList.length} buildings`);
+      console.log(`Loaded ${graph.nodes.size} nodes, ${graph.edges.length} edges, ${buildingsList.length} buildings, ${waterList.length} water features`);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to load data';
       console.error(e);
@@ -56,6 +65,7 @@
 
   let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
   let initialLoad = true;
+  let previousVisibleEdges = new Set<string>();
   
   $effect(() => {
     CANVAS_WIDTH;
@@ -74,12 +84,68 @@
   });
 
   let shouldStop = false;
+
+  function expandEdgeIds(edgeIds: Set<string>): Set<string> {
+    const expanded = new Set<string>();
+    if (!graph) return expanded;
+
+    const edgeById = new Map(graph.edges.map(edge => [edge.id, edge]));
+    for (const edgeId of edgeIds) {
+      expanded.add(edgeId);
+      const edge = edgeById.get(edgeId);
+      if (edge?.subEdges) {
+        for (const subEdgeId of edge.subEdges) {
+          expanded.add(subEdgeId);
+        }
+      }
+    }
+
+    return expanded;
+  }
+
+  function updateHighlightedEdges(nextEdges: Set<string>) {
+    const nextFreshness = new Map(edgeFreshness);
+    const now = performance.now();
+
+    for (const edgeId of expandEdgeIds(nextEdges)) {
+      if (!nextFreshness.has(edgeId)) {
+        nextFreshness.set(edgeId, now);
+      }
+    }
+
+    for (const [edgeId, born] of nextFreshness) {
+      if (now - born > 14000) {
+        nextFreshness.delete(edgeId);
+      }
+    }
+
+    edgeFreshness = nextFreshness;
+    highlightedEdges = nextEdges;
+  }
   
   async function runAlgorithm(algoId: string) {
     if (!graph || algorithmRunning) return;
     
     const algo = algorithms.find(a => a.id === algoId);
     if (!algo) return;
+
+    const targetRadius = Math.round(BASE_MAP_RADIUS * getAlgorithmViewportScale(algo.id));
+    if (targetRadius !== currentMapRadius) {
+      await loadData(targetRadius);
+    }
+
+    if (!graph) return;
+
+    const pins = pickVisiblePins(graph, {
+      bbox,
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      requiresSink: algo.requiresSink,
+      algorithmId: algo.id
+    });
+    sourcePin = pins.source;
+    sinkPin = pins.sink;
+    sinkReachable = pins.reachable;
     
     selectedAlgoId = algoId;
     algorithmRunning = true;
@@ -87,6 +153,8 @@
     shouldStop = false;
     highlightedEdges = new Set();
     visitedNodes = new Set();
+    edgeFreshness = new Map();
+    previousVisibleEdges = new Set();
     
     console.log(`Starting ${algo.name}, total edges:`, graph.edges.length);
     
@@ -98,7 +166,16 @@
       })) {
         if (shouldStop) break;
         
-        highlightedEdges = step.visitedEdges;
+        const visibleEdges = expandEdgeIds(step.visitedEdges);
+        const hasEdgeChange =
+          visibleEdges.size !== previousVisibleEdges.size ||
+          Array.from(visibleEdges).some(edgeId => !previousVisibleEdges.has(edgeId));
+
+        if (hasEdgeChange) {
+          previousVisibleEdges = visibleEdges;
+          updateHighlightedEdges(step.visitedEdges);
+        }
+
         visitedNodes = step.visitedNodes;
         
         while (algorithmPaused && !shouldStop) {
@@ -134,6 +211,8 @@
     selectedAlgoId = null;
     highlightedEdges = new Set();
     visitedNodes = new Set();
+    edgeFreshness = new Map();
+    previousVisibleEdges = new Set();
     if (pauseResolve) {
       pauseResolve();
       pauseResolve = null;
@@ -143,60 +222,17 @@
   function initializePins() {
     if (!graph) return;
 
-    const centerLat = (bbox.north + bbox.south) / 2;
-    const centerLon = (bbox.east + bbox.west) / 2;
+    const pins = pickVisiblePins(graph, {
+      bbox,
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      requiresSink: true,
+      algorithmId: selectedAlgoId ?? undefined
+    });
 
-    const nodeArray = Array.from(graph.nodes.values());
-    if (nodeArray.length < 2) return;
-
-    const isInBounds = (node: typeof nodeArray[0]) => {
-      return node.lat >= bbox.south && 
-             node.lat <= bbox.north && 
-             node.lon >= bbox.west && 
-             node.lon <= bbox.east;
-    };
-
-    let sourceNode = nodeArray[0];
-    let minDistToCenter = Infinity;
-    for (const node of nodeArray) {
-      if (!isInBounds(node)) continue;
-      const dist = Math.sqrt((node.lat - centerLat) ** 2 + (node.lon - centerLon) ** 2);
-      if (dist < minDistToCenter) {
-        minDistToCenter = dist;
-        sourceNode = node;
-      }
-    }
-
-    const visited = new Set<string>();
-    const stack: string[] = [sourceNode.id];
-    visited.add(sourceNode.id);
-    const candidates: typeof sourceNode[] = [];
-    
-    while (stack.length > 0 && visited.size < 50) {
-      const currentId = stack.pop()!;
-      const currentNode = graph.nodes.get(currentId);
-      if (!currentNode) continue;
-      
-      if (isInBounds(currentNode) && visited.size > 10) {
-        candidates.push(currentNode);
-      }
-      
-      for (const edge of currentNode.edges) {
-        const neighborNode = graph.nodes.get(edge.to);
-        if (!visited.has(edge.to) && neighborNode && isInBounds(neighborNode)) {
-          visited.add(edge.to);
-          stack.push(edge.to);
-        }
-      }
-    }
-    
-    const sinkNode = candidates.length > 0 
-      ? candidates[Math.floor(Math.random() * candidates.length)]
-      : sourceNode;
-    
-    sourcePin = { nodeId: sourceNode.id, lat: sourceNode.lat, lon: sourceNode.lon };
-    sinkPin = { nodeId: sinkNode.id, lat: sinkNode.lat, lon: sinkNode.lon };
-    sinkReachable = checkReachability(sourceNode.id, sinkNode.id);
+    sourcePin = pins.source;
+    sinkPin = pins.sink;
+    sinkReachable = pins.reachable;
   }
 
   function findNearestNode(lat: number, lon: number): { nodeId: string; lat: number; lon: number } | null {
@@ -272,11 +308,11 @@
   </div>
 
   <div class="absolute right-2 top-2 flex flex-col items-end gap-2">
-    <button 
-      onclick={() => window.open('?screensaver', '_blank')}
+      <button 
+      onclick={() => window.open(screensaverPath, '_blank')}
       class="px-3 py-1.5 text-sm bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600/30 hover:to-purple-600/30 backdrop-blur-sm text-white rounded border border-indigo-500/30 transition-all"
     >
-      ✨ Screensaver Mode
+      Screensaver Builder
     </button>
     <button 
       onclick={initializePins}
@@ -302,7 +338,9 @@
       {bbox}
       {graph}
       {buildings}
+      {water}
       {highlightedEdges}
+      {edgeFreshness}
       {CANVAS_WIDTH}
       {CANVAS_HEIGHT}
       {sourcePin}

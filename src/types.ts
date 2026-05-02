@@ -56,9 +56,22 @@ export interface BoundingBox {
   east: number;
 }
 
+export interface CanvasTheme {
+  background: [string, string, string];
+  road: string;
+  building: string;
+  water: string;
+  highlight: string;
+  highlightHot: string;
+  source: string;
+  sink: string;
+  focusBackground: string;
+}
+
 export interface VisualizationState {
   graph: Graph | null;
   buildings: Element[];
+  water: Element[];
   highlightedEdges: Set<string>;
   visitedNodes: Set<string>;
   algorithmRunning: boolean;

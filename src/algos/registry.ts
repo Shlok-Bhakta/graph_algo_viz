@@ -16,6 +16,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'traversal',
     requiresSource: false,
     requiresSink: false,
+    viewportScale: 1.15,
     run: dfs
   },
   {
@@ -25,6 +26,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'traversal',
     requiresSource: false,
     requiresSink: false,
+    viewportScale: 1.15,
     run: bfs
   },
   {
@@ -34,6 +36,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'mst',
     requiresSource: false,
     requiresSink: false,
+    viewportScale: 1.35,
     run: Kruskal
   },
   {
@@ -43,6 +46,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'mst',
     requiresSource: false,
     requiresSink: false,
+    viewportScale: 1.35,
     run: Prim
   },
   {
@@ -52,6 +56,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'shortest-path',
     requiresSource: true,
     requiresSink: true,
+    viewportScale: 1.45,
     run: bellmanford
   },
   {
@@ -61,6 +66,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'shortest-path',
     requiresSource: true,
     requiresSink: true,
+    viewportScale: 1.55,
     run: Djikstra
   },
   {
@@ -70,6 +76,7 @@ export const algorithms: AlgorithmMetadata[] = [
     category: 'shortest-path',
     requiresSource: true,
     requiresSink: true,
+    viewportScale: 2.8,
     run: astar
   },
   {
@@ -85,4 +92,9 @@ export const algorithms: AlgorithmMetadata[] = [
 
 export function getAlgorithmById(id: string): AlgorithmMetadata | undefined {
   return algorithms.find(algo => algo.id === id);
+}
+
+export function getAlgorithmViewportScale(id?: string): number {
+  const scale = algorithms.find(algo => algo.id === id)?.viewportScale;
+  return Math.max(0.5, Math.min(4, scale ?? 1));
 }

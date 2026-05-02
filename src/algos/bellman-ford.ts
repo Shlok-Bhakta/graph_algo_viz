@@ -1,10 +1,10 @@
 import type { Edge, Graph, GraphNode } from '../types';
-import type { AlgorithmStep } from './types';
+import type { AlgorithmOptions, AlgorithmStep } from './types';
 
 
 export async function* bellmanford(
   graph: Graph,
-  options?: { source?: string; sink?: string; delayMs?: number }
+  options?: AlgorithmOptions
 ): AsyncGenerator<AlgorithmStep, AlgorithmStep> {
   const delayMs = options?.delayMs ?? 50;
   let visitedEdges = new Set<string>();
@@ -20,6 +20,7 @@ export async function* bellmanford(
   }
   
   let queue: string[] = [startNodeId]
+  visitedNodes.add(startNodeId)
   while(queue.length != 0){
     let elem: string | undefined = queue.shift();
     let node: GraphNode | undefined;
@@ -38,9 +39,7 @@ export async function* bellmanford(
           continue;
         }else{
           queue.push(node.edges[i].to)
-          visitedEdges.add(node.edges[i].id);
           visitedNodes.add(node.edges[i].to)
-          reachableEdges.add(node.edges[i])
         }
         
       }
@@ -50,6 +49,11 @@ export async function* bellmanford(
   // yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
   // await new Promise(resolve => setTimeout(resolve, delayMs));
   let reachable = visitedNodes
+  reachableEdges = new Set(
+    Array.from(reachable)
+      .flatMap(nodeId => graph.nodes.get(nodeId)?.edges ?? [])
+      .filter(edge => reachable.has(edge.to))
+  );
   visitedEdges = new Set<string>();
   visitedNodes = new Set<string>();
   const distances = new Map<string, number>();
@@ -80,13 +84,35 @@ export async function* bellmanford(
   visitedEdges.clear()
   visitedNodes.clear()
 
+  const path: { nodeId: string; edgeId: string }[] = [];
   let curr = endNodeId
   while(curr != startNodeId){
-    const parent = parents.get(curr)!;
-    visitedNodes.add(curr)
-    visitedNodes.add(parent.nodeId)
-    visitedEdges.add(parent.edgeId)
+    const parent = parents.get(curr);
+    if (!parent) {
+      return { visitedEdges, visitedNodes };
+    }
+    path.push({ nodeId: curr, edgeId: parent.edgeId });
     curr = parent.nodeId
+  }
+
+  if (options?.skipPathReconstructionYields) {
+    for (const pathStep of path) {
+      const parent = parents.get(pathStep.nodeId);
+      if (!parent) continue;
+      visitedNodes.add(pathStep.nodeId)
+      visitedNodes.add(parent.nodeId)
+      visitedEdges.add(pathStep.edgeId)
+    }
+    visitedNodes.add(startNodeId)
+    return { visitedEdges, visitedNodes };
+  }
+
+  for (const pathStep of path) {
+    const parent = parents.get(pathStep.nodeId);
+    if (!parent) continue;
+    visitedNodes.add(pathStep.nodeId)
+    visitedNodes.add(parent.nodeId)
+    visitedEdges.add(pathStep.edgeId)
     yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
     await new Promise(resolve => setTimeout(resolve, delayMs));
   }

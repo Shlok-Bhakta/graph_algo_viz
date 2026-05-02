@@ -29,6 +29,11 @@ export async function fetchOSMData(bbox: BoundingBox): Promise<OverpassResponse>
   way["highway"~"^(motorway|trunk|primary|secondary|tertiary|residential|service)$"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
   way["building"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
   relation["building"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  way["natural"="water"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  relation["natural"="water"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  way["waterway"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  way["landuse"="reservoir"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  relation["landuse"="reservoir"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
 );
 out geom;`;
 

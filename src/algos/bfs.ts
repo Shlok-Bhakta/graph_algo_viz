@@ -16,36 +16,33 @@ export async function* bfs(
     startNodeId = firstNode.id;
   }
 
-  let queue: string[] = [startNodeId]
-  while(queue.length != 0){
-    let elem: string | undefined = queue.shift();
-    let node: GraphNode | undefined;
-    if(elem == undefined){
+  const queue: string[] = [startNodeId];
+  visitedNodes.add(startNodeId);
+
+  while (queue.length !== 0) {
+    const elem = queue.shift();
+    if (elem === undefined) {
       continue;
-    } else{
-      node = graph.nodes.get(elem);
-      if(node == undefined){
+    }
+
+    const node: GraphNode | undefined = graph.nodes.get(elem);
+    if (node === undefined) {
+      continue;
+    }
+
+    for (const edge of node.edges) {
+      if (visitedNodes.has(edge.to)) {
         continue;
       }
-      if(node.edges.length > 0){
-        visitedNodes.add(node.edges[0].from)
-      }
-      for(let i = 0; i < node.edges.length; i++){
-        if(visitedNodes.has(node.edges[i].to)){
-          continue;
-        }else{
-          queue.push(node.edges[i].to)
-          visitedEdges.add(node.edges[i].id);
-          visitedNodes.add(node.edges[i].to)
-        }
-        
-        yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-    
-  }
 
+      queue.push(edge.to);
+      visitedEdges.add(edge.id);
+      visitedNodes.add(edge.to);
+
+      yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
 
   return { visitedEdges, visitedNodes };
 }

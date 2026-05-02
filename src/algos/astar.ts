@@ -1,5 +1,5 @@
 import type { Graph } from '../types';
-import type { AlgorithmStep } from './types';
+import type { AlgorithmOptions, AlgorithmStep } from './types';
 import MinHeap from 'heap-js';
 
 function heuristic(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -19,7 +19,7 @@ function heuristic(lat1: number, lon1: number, lat2: number, lon2: number): numb
 
 export async function* astar(
   graph: Graph,
-  options?: { source?: string; sink?: string; delayMs?: number }
+  options?: AlgorithmOptions
 ): AsyncGenerator<AlgorithmStep, AlgorithmStep> {
   const delayMs = options?.delayMs ?? 50;
   let visitedEdges = new Set<string>();
@@ -41,15 +41,25 @@ export async function* astar(
   }
 
   const gScore = new Map<string, number>();
-  const fScore = new Map<string, number>();
+  const heuristicScore = new Map<string, number>();
   const parents = new Map<string, {nodeId: string, edgeId: string} | null>();
   const visited = new Set<string>();
+  const estimatedCostToEnd = (nodeId: string): number => {
+    const cached = heuristicScore.get(nodeId);
+    if (cached !== undefined) return cached;
+
+    const node = graph.nodes.get(nodeId);
+    if (!node) return Infinity;
+
+    const score = heuristic(node.lat, node.lon, endNode.lat, endNode.lon);
+    heuristicScore.set(nodeId, score);
+    return score;
+  };
 
   gScore.set(startNodeId, 0);
-  fScore.set(startNodeId, heuristic(startNode.lat, startNode.lon, endNode.lat, endNode.lon));
 
   const heap = new MinHeap<{nodeId: string, fScore: number}>((a, b) => a.fScore - b.fScore);
-  heap.push({ nodeId: startNodeId, fScore: fScore.get(startNodeId)! });
+  heap.push({ nodeId: startNodeId, fScore: estimatedCostToEnd(startNodeId) });
 
   while (heap.length > 0) {
     const { nodeId } = heap.pop()!;
@@ -71,14 +81,12 @@ export async function* astar(
       const oldG = gScore.get(edge.to) ?? Infinity;
 
       if (tentativeG < oldG) {
-        const toNode = graph.nodes.get(edge.to);
-        if (!toNode) continue;
-
         gScore.set(edge.to, tentativeG);
-        const h = heuristic(toNode.lat, toNode.lon, endNode.lat, endNode.lon);
-        fScore.set(edge.to, tentativeG + h);
+        const fScore = tentativeG + estimatedCostToEnd(edge.to);
+        if (!Number.isFinite(fScore)) continue;
+
         parents.set(edge.to, { nodeId: edge.from, edgeId: edge.id });
-        heap.push({ nodeId: edge.to, fScore: tentativeG + h });
+        heap.push({ nodeId: edge.to, fScore });
 
         visitedEdges.add(edge.id);
         visitedNodes.add(edge.from);
@@ -92,19 +100,39 @@ export async function* astar(
   visitedEdges.clear();
   visitedNodes.clear();
 
+  const path: { nodeId: string; edgeId: string }[] = [];
   let curr = endNodeId;
   while (curr !== startNodeId) {
     const parent = parents.get(curr);
     if (!parent) break;
-    
-    visitedNodes.add(curr);
-    visitedNodes.add(parent.nodeId);
-    visitedEdges.add(parent.edgeId);
+    path.push({ nodeId: curr, edgeId: parent.edgeId });
     curr = parent.nodeId;
+  }
+
+  if (options?.skipPathReconstructionYields) {
+    for (const pathStep of path.reverse()) {
+      const parent = parents.get(pathStep.nodeId);
+      if (!parent) continue;
+      visitedNodes.add(pathStep.nodeId);
+      visitedNodes.add(parent.nodeId);
+      visitedEdges.add(pathStep.edgeId);
+    }
+    visitedNodes.add(startNodeId);
+    return { visitedEdges, visitedNodes };
+  }
+
+  const revealDelayMs = Math.max(8, Math.min(18, delayMs / 3));
+  for (const pathStep of path.reverse()) {
+    const parent = parents.get(pathStep.nodeId);
+    if (!parent) continue;
+    visitedNodes.add(pathStep.nodeId);
+    visitedNodes.add(parent.nodeId);
+    visitedEdges.add(pathStep.edgeId);
     yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-    await new Promise(resolve => setTimeout(resolve, delayMs * 2));
+    await new Promise(resolve => setTimeout(resolve, revealDelayMs));
   }
   visitedNodes.add(startNodeId);
+  yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
 
   return { visitedEdges, visitedNodes };
 }

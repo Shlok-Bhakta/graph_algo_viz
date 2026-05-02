@@ -5,9 +5,16 @@ export interface AlgorithmStep {
   visitedNodes: Set<string>;
 }
 
+export interface AlgorithmOptions {
+  source?: string;
+  sink?: string;
+  delayMs?: number;
+  skipPathReconstructionYields?: boolean;
+}
+
 export type AlgorithmGenerator = (
   graph: Graph, 
-  options?: { source?: string; sink?: string; delayMs?: number }
+  options?: AlgorithmOptions
 ) => AsyncGenerator<AlgorithmStep, AlgorithmStep>;
 
 export interface AlgorithmMetadata {
@@ -17,5 +24,6 @@ export interface AlgorithmMetadata {
   category: 'traversal' | 'shortest-path' | 'demo' | 'mst';
   requiresSource: boolean;
   requiresSink: boolean;
+  viewportScale?: number;
   run: AlgorithmGenerator;
 }

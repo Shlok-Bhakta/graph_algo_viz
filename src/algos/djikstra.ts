@@ -1,10 +1,10 @@
 import type { Edge, Graph, GraphNode } from '../types';
-import type { AlgorithmStep } from './types';
+import type { AlgorithmOptions, AlgorithmStep } from './types';
 import MinHeap from 'heap-js';
 
 export async function* Djikstra(
   graph: Graph,
-  options?: { source?: string; sink?: string; delayMs?: number }
+  options?: AlgorithmOptions
 ): AsyncGenerator<AlgorithmStep, AlgorithmStep> {
   const delayMs = options?.delayMs ?? 50;
   let visitedEdges = new Set<string>();
@@ -62,19 +62,42 @@ export async function* Djikstra(
   visitedEdges.clear()
   visitedNodes.clear()
 
+  const path: { nodeId: string; edgeId: string }[] = [];
   let curr = endNodeId
   while(curr != startNodeId){
-    const parent = parents.get(curr)!;
-    visitedNodes.add(curr)
-    visitedNodes.add(parent.nodeId)
-    visitedEdges.add(parent.edgeId)
+    const parent = parents.get(curr);
+    if (!parent) {
+      return { visitedEdges, visitedNodes };
+    }
+    path.push({ nodeId: curr, edgeId: parent.edgeId });
     curr = parent.nodeId
+  }
+
+  if (options?.skipPathReconstructionYields) {
+    for (const pathStep of path.reverse()) {
+      const parent = parents.get(pathStep.nodeId);
+      if (!parent) continue;
+      visitedNodes.add(pathStep.nodeId)
+      visitedNodes.add(parent.nodeId)
+      visitedEdges.add(pathStep.edgeId)
+    }
+    visitedNodes.add(startNodeId)
+    return { visitedEdges, visitedNodes };
+  }
+
+  const revealDelayMs = Math.max(8, Math.min(18, delayMs / 3));
+  for (const pathStep of path.reverse()) {
+    const parent = parents.get(pathStep.nodeId);
+    if (!parent) continue;
+    visitedNodes.add(pathStep.nodeId)
+    visitedNodes.add(parent.nodeId)
+    visitedEdges.add(pathStep.edgeId)
     yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    await new Promise(resolve => setTimeout(resolve, revealDelayMs));
   }
   visitedNodes.add(startNodeId)
   yield { visitedEdges: new Set(visitedEdges), visitedNodes: new Set(visitedNodes) };
-  await new Promise(resolve => setTimeout(resolve, delayMs));
+  await new Promise(resolve => setTimeout(resolve, revealDelayMs));
   
 
 
