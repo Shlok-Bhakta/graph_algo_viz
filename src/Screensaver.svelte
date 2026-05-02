@@ -33,6 +33,7 @@
   let highlightedEdges = $state(new Set<string>());
   let edgeFreshness = $state(new Map<string, number>());
   let currentLocation = $state('');
+  let loadingLocation = $state('');
   let currentAlgorithm = $state('');
   let currentThemeIndex = $state(0);
   let currentRadius = $state(1200);
@@ -95,7 +96,9 @@
     }
     preloaded = null;
     preloadedAlgorithmId = undefined;
-    return prepareRandomLocation(settings, width, height, recentLocations, algorithmId);
+    return prepareRandomLocation(settings, width, height, recentLocations, algorithmId, (location) => {
+      loadingLocation = location.name;
+    });
   }
 
   function applyPrepared(prepared: PreparedLocation) {
@@ -148,6 +151,7 @@
   async function runLoop() {
     while (!cancelled) {
       loading = true;
+      loadingLocation = '';
       focusPath = false;
       highlightedEdges = new Set();
       edgeFreshness = new Map();
@@ -171,6 +175,7 @@
         continue;
       } finally {
         loading = false;
+        loadingLocation = '';
       }
 
       preloadNextLocation(chooseAlgorithmId(settings, recentAlgorithms));
@@ -246,8 +251,9 @@
 
     {#if loading}
       <div class="loading-mark">
-        <span>{currentLocation || 'Finding a good street graph'}</span>
-        <i></i>
+        <div class="spinner" aria-hidden="true"></div>
+        <span>{loadingLocation || currentLocation}</span>
+        <i aria-hidden="true"><b></b></i>
       </div>
     {/if}
 
@@ -408,19 +414,38 @@
     inset: 0;
     z-index: 15;
     display: grid;
+    grid-template-rows: auto auto auto;
     place-items: center;
-    gap: 14px;
+    gap: 12px;
     color: color-mix(in srgb, var(--text), transparent 34%);
     font-size: 13px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 2px solid color-mix(in srgb, var(--accent), transparent 74%);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 800ms linear infinite;
+  }
+
   .loading-mark i {
-    width: 140px;
-    height: 2px;
+    position: relative;
+    width: min(220px, 42vw);
+    height: 3px;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--accent), transparent 86%);
+  }
+
+  .loading-mark i b {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 42%;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: pulse-line 1.2s ease-in-out infinite;
+    animation: loading-bar 1.05s ease-in-out infinite;
   }
 
   .caption {
@@ -726,9 +751,13 @@
     100% { clip-path: inset(0 0 0 72%); opacity: 0.25; }
   }
 
-  @keyframes pulse-line {
-    0%, 100% { opacity: 0.25; transform: scaleX(0.55); }
-    50% { opacity: 1; transform: scaleX(1); }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes loading-bar {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(260%); }
   }
 
   @media (max-width: 820px) {

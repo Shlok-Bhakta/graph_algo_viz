@@ -302,7 +302,8 @@ export async function prepareRandomLocation(
   width: number,
   height: number,
   recentLocationIds: string[] = [],
-  algorithmId?: string
+  algorithmId?: string,
+  onAttempt?: (location: ScreensaverLocation) => void
 ): Promise<PreparedLocation> {
   const selected = settings.locations
     .map((id) => screensaverLocations.find((location) => location.id === id))
@@ -313,6 +314,7 @@ export async function prepareRandomLocation(
   for (let attempt = 0; attempt < 8; attempt++) {
     const location = weightedLocation(pool, recentLocationIds);
     const radius = randomRadius(location, attempt, algorithmId);
+    onAttempt?.(location);
 
     try {
       const bbox = calculateBbox(location.lat, location.lon, width, height, radius);
